@@ -152,3 +152,15 @@ cython_debug/
 # Arquivos Excel temporários
 ~$*.xlsx
 ~$*.xls
+
+# Dados locais da aplicação
+RELAÇÃO DE LIVROS.xlsx
+*.db
+*.sqlite
+*.sqlite3
+*.db-journal
+*.sqlite-journal
+*.sqlite3-journal
+*.db-wal
+*.sqlite-wal
+*.sqlite3-wal
