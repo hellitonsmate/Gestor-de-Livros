@@ -18,7 +18,7 @@ class BookManagerGUI(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("Gestor de Livros")
-        self.geometry("800x600")
+        self.geometry("1200x700")
 
         self.manager = BookManager()
 
@@ -33,6 +33,7 @@ class BookManagerGUI(tk.Tk):
         control_frame = ttk.Frame(self)
         control_frame.pack(fill=tk.X, padx=10, pady=5)
 
+        # Primeira linha
         ttk.Label(control_frame, text="Autor:").grid(row=0, column=0, sticky=tk.W)
         self.author_entry = ttk.Entry(control_frame, width=20)
         self.author_entry.grid(row=0, column=1, padx=5)
@@ -50,6 +51,23 @@ class BookManagerGUI(tk.Tk):
         ttk.Button(control_frame, text="Remover", command=self.remove_book).grid(row=0, column=7, padx=5)
         ttk.Button(control_frame, text="+ Qtd", command=self.increase_quantity).grid(row=0, column=8, padx=5)
         ttk.Button(control_frame, text="- Qtd", command=self.decrease_quantity).grid(row=0, column=9, padx=5)
+
+        # Segunda linha - campos adicionais
+        ttk.Label(control_frame, text="ISBN:").grid(row=1, column=0, sticky=tk.W)
+        self.isbn_entry = ttk.Entry(control_frame, width=20)
+        self.isbn_entry.grid(row=1, column=1, padx=5)
+
+        ttk.Label(control_frame, text="Editora:").grid(row=1, column=2, sticky=tk.W)
+        self.editora_entry = ttk.Entry(control_frame, width=20)
+        self.editora_entry.grid(row=1, column=3, padx=5)
+
+        ttk.Label(control_frame, text="Ano:").grid(row=1, column=4, sticky=tk.W)
+        self.ano_entry = ttk.Entry(control_frame, width=10)
+        self.ano_entry.grid(row=1, column=5, padx=5)
+
+        ttk.Label(control_frame, text="Gênero:").grid(row=1, column=6, sticky=tk.W)
+        self.genero_entry = ttk.Entry(control_frame, width=20)
+        self.genero_entry.grid(row=1, column=7, padx=5)
 
         # Search frame
         search_frame = ttk.LabelFrame(self, text="Buscar")
@@ -84,7 +102,20 @@ class BookManagerGUI(tk.Tk):
         if books is None:
             books = self.manager.list_books()
         for b in books:
-            line = f"Autor: {b.autor:<30} | Título: {b.titulo:<40} | Qtd: {b.quantidade}"
+            parts = [
+                f"Autor: {b.autor:<25}",
+                f"Título: {b.titulo:<35}",
+                f"Qtd: {b.quantidade}"
+            ]
+            if b.isbn:
+                parts.append(f"ISBN: {b.isbn:<15}")
+            if b.editora:
+                parts.append(f"Editora: {b.editora:<20}")
+            if b.ano:
+                parts.append(f"Ano: {b.ano}")
+            if b.genero:
+                parts.append(f"Gênero: {b.genero:<15}")
+            line = " | ".join(parts)
             self.book_list.insert(tk.END, line)
 
     def get_selected_title(self):
@@ -94,9 +125,12 @@ class BookManagerGUI(tk.Tk):
             line = self.book_list.get(selection)
             # The line format is fixed; split on '|'
             parts = line.split("|")
-            title_part = parts[1]  # " Título: ... "
-            title = title_part.split(":", 1)[1].strip()
-            return title
+            # Find the part that starts with "Título:"
+            for part in parts:
+                if part.strip().startswith("Título:"):
+                    title = part.split(":", 1)[1].strip()
+                    return title
+            return None
         except Exception:
             return None
 

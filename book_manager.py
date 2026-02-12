@@ -38,19 +38,29 @@ class Book:
     autor: str
     titulo: str
     quantidade: int = 1
+    isbn: str = ""
+    editora: str = ""
+    ano: str = ""
+    genero: str = ""
 
     @classmethod
     def from_series(cls, series: pd.Series) -> "Book":
         # The Excel file may have column names that are not ideal – we
         # normalise them when loading.
-        autor = str(series["autor"]).strip()
-        titulo = str(series["titulo"]).strip()
+        autor = str(series.get("autor", "")).strip()
+        titulo = str(series.get("titulo", "")).strip()
         # ``quantidade`` may be a float (pandas default) – cast safely.
-        if pd.isna(series["quantidade"]):
+        if pd.isna(series.get("quantidade")):
             quantidade = 1
         else:
             quantidade = int(series["quantidade"])
-        return cls(autor=autor, titulo=titulo, quantidade=quantidade)
+        # Campos opcionais
+        isbn = str(series.get("isbn", "")).strip() if "isbn" in series else ""
+        editora = str(series.get("editora", "")).strip() if "editora" in series else ""
+        ano = str(series.get("ano", "")).strip() if "ano" in series else ""
+        genero = str(series.get("genero", "")).strip() if "genero" in series else ""
+        return cls(autor=autor, titulo=titulo, quantidade=quantidade, 
+                   isbn=isbn, editora=editora, ano=ano, genero=genero)
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -96,18 +106,30 @@ class BookManager:
             df = pd.read_excel(self.excel_path, header=1)
             df.columns = [str(c).lower().strip() for c in df.columns]
             col_map = {c: c for c in df.columns}
+            if "livro" in col_map:
+                col_map["livro"] = "titulo"
         # Rename columns to standard names.
         rename_dict = {}
         for original, standard in col_map.items():
             if original != standard:
                 rename_dict[original] = standard
         df = df.rename(columns=rename_dict)
-        # Identify quantity column (the one that is not autor or titulo).
-        expected = {"autor", "titulo"}
-        quantity_col = (set(df.columns) - expected).pop()
-        df = df.rename(columns={quantity_col: "quantidade"})
+        
+        # Identify quantity column (the one that is not autor or titulo or other known columns).
+        known_cols = {"autor", "titulo", "livro", "isbn", "editora", "ano", "genero"}
+        remaining_cols = set(df.columns) - known_cols
+        if remaining_cols:
+            # Assume the first remaining column is quantidade if quantidade is not already present
+            if "quantidade" not in df.columns:
+                quantity_col = remaining_cols.pop()
+                df = df.rename(columns={quantity_col: "quantidade"})
+        
         # Fill missing quantities with 1 and ensure integer type.
-        df["quantidade"] = df["quantidade"].fillna(1).astype(int)
+        if "quantidade" in df.columns:
+            df["quantidade"] = df["quantidade"].fillna(1).astype(int)
+        else:
+            df["quantidade"] = 1
+        
         self.books = [Book.from_series(row) for _, row in df.iterrows()]
 
     def _save(self) -> None:
@@ -124,12 +146,13 @@ class BookManager:
         wb = Workbook()
         ws = wb.active
         # Title row (first row)
-        ws.append(["RELAÇÃO DE LIVROS / REMIÇÃO PELA LEITURA", "", ""])  # title row
+        ws.append(["RELAÇÃO DE LIVROS / REMIÇÃO PELA LEITURA", "", "", "", "", "", ""])  # title row
         # Header row (second row)
-        ws.append(["autor", "titulo", "quantidade"])  # header row
+        ws.append(["autor", "titulo", "quantidade", "isbn", "editora", "ano", "genero"])  # header row
         # Data rows
         for book in self.books:
-            ws.append([book.autor, book.titulo, book.quantidade])
+            ws.append([book.autor, book.titulo, book.quantidade, book.isbn, 
+                      book.editora, book.ano, book.genero])
         wb.save(self.excel_path)
 
     # ---------------------------------------------------------------------
@@ -138,7 +161,8 @@ class BookManager:
     def list_books(self) -> List[Book]:
         return self.books
 
-    def add_book(self, autor: str, titulo: str, quantidade: int = 1) -> None:
+    def add_book(self, autor: str, titulo: str, quantidade: int = 1, 
+                 isbn: str = "", editora: str = "", ano: str = "", genero: str = "") -> None:
         # Check if the book already exists (by title). If it does, we just
         # increase the quantity.
         for book in self.books:
@@ -146,7 +170,8 @@ class BookManager:
                 book.quantidade += quantidade
                 break
         else:
-            self.books.append(Book(autor=autor, titulo=titulo, quantidade=quantidade))
+            self.books.append(Book(autor=autor, titulo=titulo, quantidade=quantidade,
+                                 isbn=isbn, editora=editora, ano=ano, genero=genero))
         self._save()
 
     def remove_book(self, titulo: str) -> bool:
@@ -201,7 +226,16 @@ def _print_books(books: List[Book]) -> None:
         print("Nenhum livro encontrado.")
         return
     for i, b in enumerate(books, 1):
-        print(f"{i}. Autor: {b.autor} | Título: {b.titulo} | Quantidade: {b.quantidade}")
+        info_parts = [f"Autor: {b.autor}", f"Título: {b.titulo}", f"Qtd: {b.quantidade}"]
+        if b.isbn:
+            info_parts.append(f"ISBN: {b.isbn}")
+        if b.editora:
+            info_parts.append(f"Editora: {b.editora}")
+        if b.ano:
+            info_parts.append(f"Ano: {b.ano}")
+        if b.genero:
+            info_parts.append(f"Gênero: {b.genero}")
+        print(f"{i}. {' | '.join(info_parts)}")
 
 
 def main(argv: Optional[List[str]] = None) -> int:
@@ -222,6 +256,10 @@ def main(argv: Optional[List[str]] = None) -> int:
         default=1,
         help="Quantidade (padrão 1)",
     )
+    parser_add.add_argument("--isbn", help="ISBN do livro", default="")
+    parser_add.add_argument("--editora", help="Editora do livro", default="")
+    parser_add.add_argument("--ano", help="Ano de publicação", default="")
+    parser_add.add_argument("--genero", help="Gênero do livro", default="")
 
     # remove
     parser_rm = subparsers.add_parser("remove", help="Remove um livro pelo título")
@@ -245,7 +283,8 @@ def main(argv: Optional[List[str]] = None) -> int:
     if args.command == "list":
         _print_books(manager.list_books())
     elif args.command == "add":
-        manager.add_book(args.autor, args.titulo, args.quantidade)
+        manager.add_book(args.autor, args.titulo, args.quantidade,
+                        args.isbn, args.editora, args.ano, args.genero)
         print("Livro adicionado com sucesso.")
     elif args.command == "remove":
         removed = manager.remove_book(args.titulo)
