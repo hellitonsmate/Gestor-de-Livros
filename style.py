@@ -11,14 +11,16 @@ from tkinter import ttk
 
 # Paleta de cores principal da aplicação
 COLORS = {
-    "bg": "#f5f5f5",
+    "bg": "#eef2f7",
     "bg_secondary": "#ffffff",
-    "accent": "#1976d2",
-    "accent_dark": "#115293",
+    "accent": "#1565c0",
+    "accent_dark": "#0d47a1",
+    "danger": "#c62828",
+    "danger_dark": "#8e0000",
     "accent_text": "#ffffff",
-    "text": "#222222",
-    "muted_text": "#555555",
-    "border": "#d0d0d0",
+    "text": "#1f2937",
+    "muted_text": "#4b5563",
+    "border": "#cfd8e3",
     "list_bg": "#ffffff",
 }
 
@@ -62,7 +64,7 @@ def apply_style(root: tk.Tk) -> ttk.Style:
     # Labels
     style.configure(
         "TLabel",
-        background=COLORS["bg_secondary"],
+        background=COLORS["bg"],
         foreground=COLORS["text"],
         font=FONTS["normal"],
     )
@@ -78,6 +80,8 @@ def apply_style(root: tk.Tk) -> ttk.Style:
         "TLabelframe",
         background=COLORS["bg"],
         borderwidth=1,
+        relief="solid",
+        bordercolor=COLORS["border"],
     )
     style.configure(
         "TLabelframe.Label",
@@ -85,12 +89,56 @@ def apply_style(root: tk.Tk) -> ttk.Style:
         foreground=COLORS["muted_text"],
         font=FONTS["section"],
     )
+    style.configure(
+        "Panel.TLabelframe",
+        background=COLORS["bg_secondary"],
+        borderwidth=1,
+        relief="solid",
+        bordercolor=COLORS["border"],
+        padding=2,
+    )
+    style.configure(
+        "Panel.TLabelframe.Label",
+        background=COLORS["bg_secondary"],
+        foreground=COLORS["muted_text"],
+        font=FONTS["section"],
+    )
+    style.configure(
+        "Panel.TFrame",
+        background=COLORS["bg_secondary"],
+    )
+    style.configure(
+        "Panel.TLabel",
+        background=COLORS["bg_secondary"],
+        foreground=COLORS["text"],
+        font=FONTS["normal"],
+    )
 
     # Botões
     style.configure(
         "TButton",
-        padding=6,
+        padding=(10, 7),
         font=FONTS["button"],
+    )
+    style.configure(
+        "Primary.TButton",
+        background=COLORS["accent"],
+        foreground=COLORS["accent_text"],
+    )
+    style.map(
+        "Primary.TButton",
+        background=[("active", COLORS["accent_dark"])],
+        foreground=[("active", COLORS["accent_text"])],
+    )
+    style.configure(
+        "Danger.TButton",
+        background=COLORS["danger"],
+        foreground=COLORS["accent_text"],
+    )
+    style.map(
+        "Danger.TButton",
+        background=[("active", COLORS["danger_dark"])],
+        foreground=[("active", COLORS["accent_text"])],
     )
 
     # Scrollbar
@@ -106,7 +154,7 @@ def apply_style(root: tk.Tk) -> ttk.Style:
         fieldbackground=COLORS["list_bg"],
         foreground=COLORS["text"],
         font=FONTS["normal"],
-        rowheight=26,
+        rowheight=28,
         bordercolor=COLORS["border"],
         borderwidth=1,
     )

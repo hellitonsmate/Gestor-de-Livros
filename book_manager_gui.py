@@ -17,7 +17,8 @@ class BookManagerGUI(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title("Gestor de Livros")
-        self.geometry("1200x700")
+        self.geometry("1180x700")
+        self.minsize(980, 620)
 
         # Aplica tema / estilos globais
         self.style = apply_style(self)
@@ -38,63 +39,74 @@ class BookManagerGUI(tk.Tk):
         main_frame.pack(fill=tk.BOTH, expand=True)
 
         # Top frame – controls for add / remove
-        control_frame = ttk.Frame(main_frame)
-        control_frame.pack(fill=tk.X, pady=(0, 8))
+        control_frame = ttk.LabelFrame(main_frame, text="Cadastro e edição", style="Panel.TLabelframe")
+        control_frame.pack(fill=tk.X, pady=(0, 10))
 
         # Primeira linha
-        ttk.Label(control_frame, text="Autor:").grid(row=0, column=0, sticky=tk.W, pady=2)
-        self.author_entry = ttk.Entry(control_frame, width=20)
-        self.author_entry.grid(row=0, column=1, padx=5)
+        ttk.Label(control_frame, text="Autor:", style="Panel.TLabel").grid(row=0, column=0, sticky=tk.W, padx=(8, 4), pady=(8, 2))
+        self.author_entry = ttk.Entry(control_frame, width=24)
+        self.author_entry.grid(row=0, column=1, padx=(0, 10), pady=(8, 2), sticky="ew")
 
-        ttk.Label(control_frame, text="Título:").grid(row=0, column=2, sticky=tk.W)
-        self.title_entry = ttk.Entry(control_frame, width=30)
-        self.title_entry.grid(row=0, column=3, padx=5)
+        ttk.Label(control_frame, text="Título:", style="Panel.TLabel").grid(row=0, column=2, sticky=tk.W, padx=(0, 4), pady=(8, 2))
+        self.title_entry = ttk.Entry(control_frame, width=34)
+        self.title_entry.grid(row=0, column=3, padx=(0, 10), pady=(8, 2), sticky="ew")
 
-        ttk.Label(control_frame, text="Qtd:").grid(row=0, column=4, sticky=tk.W)
-        self.qty_entry = ttk.Entry(control_frame, width=5)
-        self.qty_entry.grid(row=0, column=5, padx=5)
+        ttk.Label(control_frame, text="Qtd:", style="Panel.TLabel").grid(row=0, column=4, sticky=tk.W, padx=(0, 4), pady=(8, 2))
+        self.qty_entry = ttk.Entry(control_frame, width=8)
+        self.qty_entry.grid(row=0, column=5, padx=(0, 8), pady=(8, 2), sticky="w")
         self.qty_entry.insert(0, "1")
 
-        ttk.Button(control_frame, text="Adicionar", command=self.add_book).grid(row=0, column=6, padx=5)
-        ttk.Button(control_frame, text="Salvar edição", command=self.update_book).grid(row=0, column=7, padx=5)
-        ttk.Button(control_frame, text="Limpar", command=self.clear_form).grid(row=0, column=8, padx=5)
-        ttk.Button(control_frame, text="Remover", command=self.remove_book).grid(row=0, column=9, padx=5)
-        ttk.Button(control_frame, text="+ Qtd", command=self.increase_quantity).grid(row=0, column=10, padx=5)
-        ttk.Button(control_frame, text="- Qtd", command=self.decrease_quantity).grid(row=0, column=11, padx=5)
-
         # Segunda linha - campos adicionais
-        ttk.Label(control_frame, text="ISBN:").grid(row=1, column=0, sticky=tk.W, pady=(8, 0))
+        ttk.Label(control_frame, text="ISBN:", style="Panel.TLabel").grid(row=1, column=0, sticky=tk.W, padx=(8, 4), pady=(4, 2))
         self.isbn_entry = ttk.Entry(control_frame, width=20)
-        self.isbn_entry.grid(row=1, column=1, padx=5, pady=(8, 0))
+        self.isbn_entry.grid(row=1, column=1, padx=(0, 10), pady=(4, 2), sticky="ew")
 
-        ttk.Label(control_frame, text="Editora:").grid(row=1, column=2, sticky=tk.W, pady=(8, 0))
+        ttk.Label(control_frame, text="Editora:", style="Panel.TLabel").grid(row=1, column=2, sticky=tk.W, padx=(0, 4), pady=(4, 2))
         self.editora_entry = ttk.Entry(control_frame, width=20)
-        self.editora_entry.grid(row=1, column=3, padx=5, pady=(8, 0))
+        self.editora_entry.grid(row=1, column=3, padx=(0, 10), pady=(4, 2), sticky="ew")
 
-        ttk.Label(control_frame, text="Ano:").grid(row=1, column=4, sticky=tk.W, pady=(8, 0))
+        ttk.Label(control_frame, text="Ano:", style="Panel.TLabel").grid(row=1, column=4, sticky=tk.W, padx=(0, 4), pady=(4, 2))
         self.ano_entry = ttk.Entry(control_frame, width=10)
-        self.ano_entry.grid(row=1, column=5, padx=5, pady=(8, 0))
+        self.ano_entry.grid(row=1, column=5, padx=(0, 8), pady=(4, 2), sticky="w")
 
-        ttk.Label(control_frame, text="Gênero:").grid(row=1, column=6, sticky=tk.W, pady=(8, 0))
-        self.genero_entry = ttk.Entry(control_frame, width=20)
-        self.genero_entry.grid(row=1, column=7, padx=5, pady=(8, 0))
+        ttk.Label(control_frame, text="Gênero:", style="Panel.TLabel").grid(row=1, column=6, sticky=tk.W, padx=(0, 4), pady=(4, 2))
+        self.genero_entry = ttk.Entry(control_frame, width=22)
+        self.genero_entry.grid(row=1, column=7, padx=(0, 8), pady=(4, 2), sticky="ew")
+
+        # Terceira linha - botões de ação
+        actions_frame = ttk.Frame(control_frame, style="Panel.TFrame")
+        actions_frame.grid(row=2, column=0, columnspan=8, sticky="ew", padx=8, pady=(8, 8))
+        actions_frame.grid_columnconfigure((0, 1, 2, 3, 4, 5), weight=1)
+        ttk.Button(actions_frame, text="Adicionar", style="Primary.TButton", command=self.add_book).grid(row=0, column=0, padx=4, sticky="ew")
+        ttk.Button(actions_frame, text="Salvar edição", style="Primary.TButton", command=self.update_book).grid(row=0, column=1, padx=4, sticky="ew")
+        ttk.Button(actions_frame, text="Limpar", command=self.clear_form).grid(row=0, column=2, padx=4, sticky="ew")
+        ttk.Button(actions_frame, text="Remover", style="Danger.TButton", command=self.remove_book).grid(row=0, column=3, padx=4, sticky="ew")
+        ttk.Button(actions_frame, text="+ Qtd", command=self.increase_quantity).grid(row=0, column=4, padx=4, sticky="ew")
+        ttk.Button(actions_frame, text="- Qtd", command=self.decrease_quantity).grid(row=0, column=5, padx=4, sticky="ew")
+
+        control_frame.grid_columnconfigure(1, weight=2)
+        control_frame.grid_columnconfigure(3, weight=3)
+        control_frame.grid_columnconfigure(7, weight=2)
 
         # Search frame
-        search_frame = ttk.LabelFrame(main_frame, text="Buscar")
+        search_frame = ttk.LabelFrame(main_frame, text="Buscar", style="Panel.TLabelframe")
         search_frame.pack(fill=tk.X, pady=(0, 8))
 
-        ttk.Label(search_frame, text="Autor:").grid(row=0, column=0, sticky=tk.W, padx=5, pady=5)
+        ttk.Label(search_frame, text="Autor:", style="Panel.TLabel").grid(row=0, column=0, sticky=tk.W, padx=(8, 4), pady=8)
         self.search_author = ttk.Entry(search_frame, width=20)
-        self.search_author.grid(row=0, column=1, padx=5)
-        ttk.Button(search_frame, text="Buscar", command=self.search_by_author).grid(row=0, column=2, padx=5)
+        self.search_author.grid(row=0, column=1, padx=(0, 8), pady=8, sticky="ew")
+        ttk.Button(search_frame, text="Buscar autor", command=self.search_by_author).grid(row=0, column=2, padx=(0, 8), pady=8, sticky="ew")
 
-        ttk.Label(search_frame, text="Título:").grid(row=0, column=3, sticky=tk.W, padx=5, pady=5)
+        ttk.Label(search_frame, text="Título:", style="Panel.TLabel").grid(row=0, column=3, sticky=tk.W, padx=(0, 4), pady=8)
         self.search_title = ttk.Entry(search_frame, width=30)
-        self.search_title.grid(row=0, column=4, padx=5)
-        ttk.Button(search_frame, text="Buscar", command=self.search_by_title).grid(row=0, column=5, padx=5, pady=5)
+        self.search_title.grid(row=0, column=4, padx=(0, 8), pady=8, sticky="ew")
+        ttk.Button(search_frame, text="Buscar título", command=self.search_by_title).grid(row=0, column=5, padx=(0, 8), pady=8, sticky="ew")
+
+        search_frame.grid_columnconfigure(1, weight=2)
+        search_frame.grid_columnconfigure(4, weight=3)
 
         # Título da lista
-        header_frame = ttk.Frame(main_frame)
+        header_frame = ttk.Frame(main_frame, style="Main.TFrame")
         header_frame.pack(fill=tk.X, pady=(4, 0))
         ttk.Label(header_frame, text="Livros cadastrados", style="Section.TLabel").pack(anchor=tk.W)
 
@@ -134,6 +146,8 @@ class BookManagerGUI(tk.Tk):
         scrollbar_x.grid(row=1, column=0, sticky="ew")
         list_frame.grid_rowconfigure(0, weight=1)
         list_frame.grid_columnconfigure(0, weight=1)
+        self.book_list.tag_configure("odd", background="#f7fafc")
+        self.book_list.tag_configure("even", background="#ffffff")
 
         self.book_list.bind("<<TreeviewSelect>>", self.on_book_select)
 
@@ -146,6 +160,8 @@ class BookManagerGUI(tk.Tk):
         if books is None:
             books = self.manager.list_books()
         for b in books:
+            index = len(self.book_list.get_children())
+            tag = "even" if index % 2 == 0 else "odd"
             self.book_list.insert(
                 "",
                 tk.END,
@@ -158,6 +174,7 @@ class BookManagerGUI(tk.Tk):
                     b.ano,
                     b.genero,
                 ),
+                tags=(tag,),
             )
         self.selected_original_title = None
 
