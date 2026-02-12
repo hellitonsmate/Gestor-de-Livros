@@ -28,6 +28,25 @@ python book_manager.py find-author "Autor"
 python book_manager_gui.py
 ```
 
+### Shell interativo (CLI)
+```bash
+python book_manager_cli.py
+```
+
+No prompt `livros>`, use comandos como:
+
+```text
+list
+add "Machado de Assis" "Dom Casmurro" 2
+edit "Dom Casmurro" "Machado de Assis" "Dom Casmurro (Edição Nova)" 3
+remove "Dom Casmurro (Edição Nova)"
+inc "Memórias Póstumas de Brás Cubas" 1
+dec "Memórias Póstumas de Brás Cubas" 1
+find_author "Machado"
+find_title "Casmurro"
+exit
+```
+
 Os dados são persistidos no mesmo arquivo Excel.
 
 
