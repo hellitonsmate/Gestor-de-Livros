@@ -155,6 +155,7 @@ cython_debug/
 
 # Dados locais da aplicação
 RELAÇÃO DE LIVROS.xlsx
+storage_config.json
 *.db
 *.sqlite
 *.sqlite3
