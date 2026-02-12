@@ -8,10 +8,8 @@ from ``book_manager.py``.
 import tkinter as tk
 from tkinter import ttk, messagebox, simpledialog
 
-from pathlib import Path
-
 # Import the core manager
-from book_manager import BookManager, Book
+from book_manager import BookManager
 from style import apply_style, COLORS, FONTS
 
 
@@ -26,6 +24,7 @@ class BookManagerGUI(tk.Tk):
         self.configure(bg=COLORS["bg"])
 
         self.manager = BookManager()
+        self.selected_original_title = None
 
         self.create_widgets()
         self.refresh_list()
@@ -57,9 +56,11 @@ class BookManagerGUI(tk.Tk):
         self.qty_entry.insert(0, "1")
 
         ttk.Button(control_frame, text="Adicionar", command=self.add_book).grid(row=0, column=6, padx=5)
-        ttk.Button(control_frame, text="Remover", command=self.remove_book).grid(row=0, column=7, padx=5)
-        ttk.Button(control_frame, text="+ Qtd", command=self.increase_quantity).grid(row=0, column=8, padx=5)
-        ttk.Button(control_frame, text="- Qtd", command=self.decrease_quantity).grid(row=0, column=9, padx=5)
+        ttk.Button(control_frame, text="Salvar edição", command=self.update_book).grid(row=0, column=7, padx=5)
+        ttk.Button(control_frame, text="Limpar", command=self.clear_form).grid(row=0, column=8, padx=5)
+        ttk.Button(control_frame, text="Remover", command=self.remove_book).grid(row=0, column=9, padx=5)
+        ttk.Button(control_frame, text="+ Qtd", command=self.increase_quantity).grid(row=0, column=10, padx=5)
+        ttk.Button(control_frame, text="- Qtd", command=self.decrease_quantity).grid(row=0, column=11, padx=5)
 
         # Segunda linha - campos adicionais
         ttk.Label(control_frame, text="ISBN:").grid(row=1, column=0, sticky=tk.W, pady=(8, 0))
@@ -97,65 +98,115 @@ class BookManagerGUI(tk.Tk):
         header_frame.pack(fill=tk.X, pady=(4, 0))
         ttk.Label(header_frame, text="Livros cadastrados", style="Section.TLabel").pack(anchor=tk.W)
 
-        # Listbox to display books
+        # Tabela para exibir livros
         list_frame = ttk.Frame(main_frame)
         list_frame.pack(fill=tk.BOTH, expand=True, pady=(4, 0))
 
-        self.book_list = tk.Listbox(
+        columns = ("autor", "titulo", "quantidade", "isbn", "editora", "ano", "genero")
+        self.book_list = ttk.Treeview(
             list_frame,
-            font=FONTS["mono"],
-            bg=COLORS["list_bg"],
-            fg=COLORS["text"],
-            selectbackground=COLORS["accent"],
-            selectforeground=COLORS["accent_text"],
-            borderwidth=0,
-            highlightthickness=0,
+            columns=columns,
+            show="headings",
+            style="Books.Treeview",
         )
-        self.book_list.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        scrollbar = ttk.Scrollbar(list_frame, orient=tk.VERTICAL, command=self.book_list.yview)
-        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
-        self.book_list.config(yscrollcommand=scrollbar.set)
+        self.book_list.heading("autor", text="Autor")
+        self.book_list.heading("titulo", text="Título")
+        self.book_list.heading("quantidade", text="Qtd")
+        self.book_list.heading("isbn", text="ISBN")
+        self.book_list.heading("editora", text="Editora")
+        self.book_list.heading("ano", text="Ano")
+        self.book_list.heading("genero", text="Gênero")
+
+        self.book_list.column("autor", width=220, anchor=tk.W, stretch=True)
+        self.book_list.column("titulo", width=320, anchor=tk.W, stretch=True)
+        self.book_list.column("quantidade", width=70, anchor=tk.CENTER, stretch=False)
+        self.book_list.column("isbn", width=140, anchor=tk.W, stretch=True)
+        self.book_list.column("editora", width=180, anchor=tk.W, stretch=True)
+        self.book_list.column("ano", width=80, anchor=tk.CENTER, stretch=False)
+        self.book_list.column("genero", width=150, anchor=tk.W, stretch=True)
+
+        scrollbar_y = ttk.Scrollbar(list_frame, orient=tk.VERTICAL, command=self.book_list.yview)
+        scrollbar_x = ttk.Scrollbar(list_frame, orient=tk.HORIZONTAL, command=self.book_list.xview)
+        self.book_list.configure(yscrollcommand=scrollbar_y.set, xscrollcommand=scrollbar_x.set)
+
+        self.book_list.grid(row=0, column=0, sticky="nsew")
+        scrollbar_y.grid(row=0, column=1, sticky="ns")
+        scrollbar_x.grid(row=1, column=0, sticky="ew")
+        list_frame.grid_rowconfigure(0, weight=1)
+        list_frame.grid_columnconfigure(0, weight=1)
+
+        self.book_list.bind("<<TreeviewSelect>>", self.on_book_select)
 
     # ---------------------------------------------------------------------
     # Helper methods
     # ---------------------------------------------------------------------
     def refresh_list(self, books=None):
-        """Refresh the listbox with the given books or all books if None."""
-        self.book_list.delete(0, tk.END)
+        """Refresh the table with the given books or all books if None."""
+        self.book_list.delete(*self.book_list.get_children())
         if books is None:
             books = self.manager.list_books()
         for b in books:
-            parts = [
-                f"Autor: {b.autor:<25}",
-                f"Título: {b.titulo:<35}",
-                f"Qtd: {b.quantidade}"
-            ]
-            if b.isbn:
-                parts.append(f"ISBN: {b.isbn:<15}")
-            if b.editora:
-                parts.append(f"Editora: {b.editora:<20}")
-            if b.ano:
-                parts.append(f"Ano: {b.ano}")
-            if b.genero:
-                parts.append(f"Gênero: {b.genero:<15}")
-            line = " | ".join(parts)
-            self.book_list.insert(tk.END, line)
+            self.book_list.insert(
+                "",
+                tk.END,
+                values=(
+                    b.autor,
+                    b.titulo,
+                    b.quantidade,
+                    b.isbn,
+                    b.editora,
+                    b.ano,
+                    b.genero,
+                ),
+            )
+        self.selected_original_title = None
 
     def get_selected_title(self):
-        """Return the title of the currently selected list item, or None."""
-        try:
-            selection = self.book_list.curselection()[0]
-            line = self.book_list.get(selection)
-            # The line format is fixed; split on '|'
-            parts = line.split("|")
-            # Find the part that starts with "Título:"
-            for part in parts:
-                if part.strip().startswith("Título:"):
-                    title = part.split(":", 1)[1].strip()
-                    return title
+        """Return the title of the currently selected table item, or None."""
+        item_id = self.book_list.focus()
+        if not item_id:
             return None
-        except Exception:
+        values = self.book_list.item(item_id, "values")
+        if not values:
             return None
+        return values[1]
+
+    def clear_form(self):
+        self.author_entry.delete(0, tk.END)
+        self.title_entry.delete(0, tk.END)
+        self.qty_entry.delete(0, tk.END)
+        self.qty_entry.insert(0, "1")
+        self.isbn_entry.delete(0, tk.END)
+        self.editora_entry.delete(0, tk.END)
+        self.ano_entry.delete(0, tk.END)
+        self.genero_entry.delete(0, tk.END)
+        self.selected_original_title = None
+
+    def on_book_select(self, _event=None):
+        item_id = self.book_list.focus()
+        if not item_id:
+            return
+        values = self.book_list.item(item_id, "values")
+        if len(values) < 7:
+            return
+
+        autor, titulo, quantidade, isbn, editora, ano, genero = values
+        self.author_entry.delete(0, tk.END)
+        self.author_entry.insert(0, autor)
+        self.title_entry.delete(0, tk.END)
+        self.title_entry.insert(0, titulo)
+        self.qty_entry.delete(0, tk.END)
+        self.qty_entry.insert(0, str(quantidade))
+        self.isbn_entry.delete(0, tk.END)
+        self.isbn_entry.insert(0, isbn)
+        self.editora_entry.delete(0, tk.END)
+        self.editora_entry.insert(0, editora)
+        self.ano_entry.delete(0, tk.END)
+        self.ano_entry.insert(0, ano)
+        self.genero_entry.delete(0, tk.END)
+        self.genero_entry.insert(0, genero)
+
+        self.selected_original_title = titulo
 
     # ---------------------------------------------------------------------
     # Command callbacks
@@ -171,12 +222,58 @@ class BookManagerGUI(tk.Tk):
         if not autor or not titulo:
             messagebox.showerror("Erro", "Autor e Título são obrigatórios.")
             return
-        self.manager.add_book(autor, titulo, quantidade)
+        self.manager.add_book(
+            autor,
+            titulo,
+            quantidade,
+            self.isbn_entry.get().strip(),
+            self.editora_entry.get().strip(),
+            self.ano_entry.get().strip(),
+            self.genero_entry.get().strip(),
+        )
         self.refresh_list()
-        self.author_entry.delete(0, tk.END)
-        self.title_entry.delete(0, tk.END)
-        self.qty_entry.delete(0, tk.END)
-        self.qty_entry.insert(0, "1")
+        self.clear_form()
+
+    def update_book(self):
+        if not self.selected_original_title:
+            messagebox.showwarning("Aviso", "Selecione um livro na tabela para editar.")
+            return
+
+        autor = self.author_entry.get().strip()
+        titulo = self.title_entry.get().strip()
+        isbn = self.isbn_entry.get().strip()
+        editora = self.editora_entry.get().strip()
+        ano = self.ano_entry.get().strip()
+        genero = self.genero_entry.get().strip()
+        try:
+            quantidade = int(self.qty_entry.get())
+        except ValueError:
+            messagebox.showerror("Erro", "Quantidade deve ser um número inteiro.")
+            return
+
+        if not autor or not titulo:
+            messagebox.showerror("Erro", "Autor e Título são obrigatórios.")
+            return
+
+        updated = self.manager.update_book(
+            self.selected_original_title,
+            autor,
+            titulo,
+            quantidade,
+            isbn,
+            editora,
+            ano,
+            genero,
+        )
+        if not updated:
+            messagebox.showerror(
+                "Erro",
+                "Não foi possível atualizar. Verifique se o título já existe.",
+            )
+            return
+
+        self.refresh_list()
+        self.clear_form()
 
     def remove_book(self):
         titulo = self.get_selected_title()

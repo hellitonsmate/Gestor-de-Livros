@@ -99,5 +99,33 @@ def apply_style(root: tk.Tk) -> ttk.Style:
         background=COLORS["bg_secondary"],
     )
 
-    return style
+    # Tabela de livros
+    style.configure(
+        "Books.Treeview",
+        background=COLORS["list_bg"],
+        fieldbackground=COLORS["list_bg"],
+        foreground=COLORS["text"],
+        font=FONTS["normal"],
+        rowheight=26,
+        bordercolor=COLORS["border"],
+        borderwidth=1,
+    )
+    style.configure(
+        "Books.Treeview.Heading",
+        background=COLORS["accent"],
+        foreground=COLORS["accent_text"],
+        font=FONTS["button"],
+        relief="flat",
+        padding=(6, 6),
+    )
+    style.map(
+        "Books.Treeview",
+        background=[("selected", COLORS["accent"])],
+        foreground=[("selected", COLORS["accent_text"])],
+    )
+    style.map(
+        "Books.Treeview.Heading",
+        background=[("active", COLORS["accent_dark"])],
+    )
 
+    return style

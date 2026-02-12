@@ -186,6 +186,47 @@ class BookManager:
             return True
         return False
 
+    def update_book(
+        self,
+        original_titulo: str,
+        autor: str,
+        titulo: str,
+        quantidade: int,
+        isbn: str = "",
+        editora: str = "",
+        ano: str = "",
+        genero: str = "",
+    ) -> bool:
+        """Update a book identified by ``original_titulo``.
+
+        Returns ``True`` when the book exists and is updated. If ``titulo``
+        changes to an existing title in another record, returns ``False``.
+        """
+        target = None
+        for book in self.books:
+            if book.titulo.lower() == original_titulo.lower():
+                target = book
+                break
+
+        if target is None:
+            return False
+
+        for book in self.books:
+            if book is target:
+                continue
+            if book.titulo.lower() == titulo.lower():
+                return False
+
+        target.autor = autor
+        target.titulo = titulo
+        target.quantidade = quantidade
+        target.isbn = isbn
+        target.editora = editora
+        target.ano = ano
+        target.genero = genero
+        self._save()
+        return True
+
     def increase_quantity(self, titulo: str, amount: int = 1) -> bool:
         """Increase the quantity of a book identified by its title.
 
