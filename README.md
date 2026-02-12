@@ -1,6 +1,12 @@
 # Gestor de Livros
 
-Este é um pequeno gerenciador de livros em Python que lê os dados de um arquivo Excel (`RELAÇÃO DE LIVROS.xlsx`) e permite operações via linha de comando:
+Este é um pequeno gerenciador de livros em Python com suporte a dois tipos de persistência:
+
+- Excel (`.xlsx`)
+- SQLite (`.db`)
+
+Na primeira execução, o sistema abre uma configuração inicial para escolher qual base usar.
+A escolha é salva em `storage_config.json` e será reutilizada nas próximas execuções.
 
 - **list** – lista todos os livros
 - **add "Autor" "Título" [quantidade]** – adiciona um novo livro (ou aumenta a quantidade se o título já existir)
@@ -47,13 +53,13 @@ find_title "Casmurro"
 exit
 ```
 
-Os dados são persistidos no mesmo arquivo Excel.
+## Primeira execução
 
+Ao abrir GUI/CLI/comandos pela primeira vez:
 
-```bash
-python book_manager.py list
-python book_manager.py add "Novo Autor" "Novo Título" 2
-python book_manager.py find-author "Autor" 
-```
+- você escolhe `Excel` ou `SQLite`
+- se escolher Excel, o sistema cria `RELAÇÃO DE LIVROS.xlsx`
+- se escolher SQLite, o sistema cria `livros.db`
+- a decisão fica registrada em `storage_config.json`
 
-Os dados são persistidos de volta ao mesmo arquivo Excel.
+Depois disso, o programa usa sempre o backend configurado inicialmente.

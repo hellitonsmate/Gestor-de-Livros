@@ -24,11 +24,35 @@ class BookManagerGUI(tk.Tk):
         self.style = apply_style(self)
         self.configure(bg=COLORS["bg"])
 
-        self.manager = BookManager()
+        try:
+            self.manager = BookManager(
+                auto_configure=True,
+                choice_provider=self._prompt_first_run_storage_choice,
+            )
+        except RuntimeError:
+            messagebox.showinfo("Configuração", "Configuração inicial cancelada.")
+            self.destroy()
+            raise SystemExit(0)
         self.selected_original_title = None
 
         self.create_widgets()
         self.refresh_list()
+
+    def _prompt_first_run_storage_choice(self):
+        choice = messagebox.askyesnocancel(
+            "Configuração inicial",
+            (
+                "Primeira execução detectada.\n\n"
+                "Deseja usar Excel para armazenar os livros?\n"
+                "Sim = Excel (.xlsx)\n"
+                "Não = SQLite (.db)\n"
+                "Cancelar = sair"
+            ),
+            parent=self,
+        )
+        if choice is None:
+            return None
+        return "excel" if choice else "sqlite"
 
     # ---------------------------------------------------------------------
     # UI construction

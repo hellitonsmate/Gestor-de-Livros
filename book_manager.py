@@ -1,34 +1,28 @@
 """Book Manager
 
-A simple command‑line application to manage a collection of books.
-It can import the initial list from an Excel file (provided in the
-project root) and then allows the user to list, add, remove and search
-books.
-
-Usage examples:
-
-  python book_manager.py list
-  python book_manager.py add "New Author" "New Title" 5
-  python book_manager.py remove "Old Title"
-  python book_manager.py find-author "Author Name"
-  python book_manager.py find-title "Partial Title"
-
-The data is stored in the Excel file ``RELAÇÃO DE LIVROS.xlsx``.  Any
-changes made through the CLI are persisted back to this file.
+Gerencia uma coleção de livros com persistência em Excel ou SQLite.
+Na primeira execução, o backend é configurado e salvo em
+``storage_config.json``. Depois disso, o sistema sempre usa a opção
+escolhida inicialmente.
 """
 
 from __future__ import annotations
 
 import argparse
+import json
+import sqlite3
 import sys
-from dataclasses import dataclass, asdict
+from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import List, Optional
+from typing import Callable, List, Optional
 
 import pandas as pd
 
-# Path to the Excel file (relative to this script)
-EXCEL_PATH = Path(__file__).with_name("RELAÇÃO DE LIVROS.xlsx")
+# Arquivos padrão (relativos a este script)
+BASE_DIR = Path(__file__).resolve().parent
+EXCEL_PATH = BASE_DIR / "RELAÇÃO DE LIVROS.xlsx"
+SQLITE_PATH = BASE_DIR / "livros.db"
+CONFIG_PATH = BASE_DIR / "storage_config.json"
 
 
 @dataclass
@@ -45,115 +39,284 @@ class Book:
 
     @classmethod
     def from_series(cls, series: pd.Series) -> "Book":
-        # The Excel file may have column names that are not ideal – we
-        # normalise them when loading.
         autor = str(series.get("autor", "")).strip()
         titulo = str(series.get("titulo", "")).strip()
-        # ``quantidade`` may be a float (pandas default) – cast safely.
         if pd.isna(series.get("quantidade")):
             quantidade = 1
         else:
             quantidade = int(series["quantidade"])
-        # Campos opcionais
         isbn = str(series.get("isbn", "")).strip() if "isbn" in series else ""
         editora = str(series.get("editora", "")).strip() if "editora" in series else ""
         ano = str(series.get("ano", "")).strip() if "ano" in series else ""
         genero = str(series.get("genero", "")).strip() if "genero" in series else ""
-        return cls(autor=autor, titulo=titulo, quantidade=quantidade, 
-                   isbn=isbn, editora=editora, ano=ano, genero=genero)
+        return cls(
+            autor=autor,
+            titulo=titulo,
+            quantidade=quantidade,
+            isbn=isbn,
+            editora=editora,
+            ano=ano,
+            genero=genero,
+        )
 
     def to_dict(self) -> dict:
         return asdict(self)
 
 
-class BookManager:
-    """Handles loading, persisting and manipulating the collection of books."""
-
-    def __init__(self, excel_path: Path = EXCEL_PATH):
+class ExcelStorage:
+    def __init__(self, excel_path: Path):
         self.excel_path = excel_path
-        self.books: List[Book] = []
-        self._load()
 
-    # ---------------------------------------------------------------------
-    # Persistence
-    # ---------------------------------------------------------------------
-    def _load(self) -> None:
-        """Load books from the Excel file.
-
-        The Excel file may either have a title row followed by a header row
-        (as in the original version) **or** it may have proper column names
-        in the first row (e.g. ``Autor``, ``Livro``, ``Qtd``).  This method
-        attempts to read the file with a header on the first row; if the
-        expected columns are not present it falls back to the original
-        format (skip the title row).
-        """
+    def load_books(self) -> List[Book]:
         if not self.excel_path.exists():
-            # No file – start with an empty collection.
-            self.books = []
-            return
+            return []
 
-        # Try reading with the first row as header (common case).
         df = pd.read_excel(self.excel_path, header=0)
         df.columns = [str(c).lower().strip() for c in df.columns]
-        # Determine which columns correspond to author, title, quantity.
-        # Accept "livro" as an alias for "titulo".
         col_map = {c: c for c in df.columns}
         if "livro" in col_map:
             col_map["livro"] = "titulo"
-        # Ensure we have at least author and title columns.
+
         if "autor" not in col_map or ("titulo" not in col_map and "livro" not in df.columns):
-            # Fallback to original format where the first row is a title.
             df = pd.read_excel(self.excel_path, header=1)
             df.columns = [str(c).lower().strip() for c in df.columns]
             col_map = {c: c for c in df.columns}
             if "livro" in col_map:
                 col_map["livro"] = "titulo"
-        # Rename columns to standard names.
+
         rename_dict = {}
         for original, standard in col_map.items():
             if original != standard:
                 rename_dict[original] = standard
         df = df.rename(columns=rename_dict)
-        
-        # Identify quantity column (the one that is not autor or titulo or other known columns).
+
         known_cols = {"autor", "titulo", "livro", "isbn", "editora", "ano", "genero"}
         remaining_cols = set(df.columns) - known_cols
-        if remaining_cols:
-            # Assume the first remaining column is quantidade if quantidade is not already present
-            if "quantidade" not in df.columns:
-                quantity_col = remaining_cols.pop()
-                df = df.rename(columns={quantity_col: "quantidade"})
-        
-        # Fill missing quantities with 1 and ensure integer type.
+        if remaining_cols and "quantidade" not in df.columns:
+            quantity_col = remaining_cols.pop()
+            df = df.rename(columns={quantity_col: "quantidade"})
+
         if "quantidade" in df.columns:
             df["quantidade"] = df["quantidade"].fillna(1).astype(int)
         else:
             df["quantidade"] = 1
-        
-        self.books = [Book.from_series(row) for _, row in df.iterrows()]
 
-    def _save(self) -> None:
-        """Persist the current list of books back to the Excel file.
+        return [Book.from_series(row) for _, row in df.iterrows()]
 
-        The file is written with the same three‑column layout used for the
-        original import (AUTOR, TITULO, quantidade).  We keep the original
-        first‑row title line for compatibility.
-        """
+    def save_books(self, books: List[Book]) -> None:
         try:
             from openpyxl import Workbook
-        except ImportError:
-            raise ImportError("openpyxl is required to save the Excel file")
+        except ImportError as exc:
+            raise ImportError("openpyxl is required to save the Excel file") from exc
+
         wb = Workbook()
         ws = wb.active
-        # Title row (first row)
-        ws.append(["RELAÇÃO DE LIVROS / REMIÇÃO PELA LEITURA", "", "", "", "", "", ""])  # title row
-        # Header row (second row)
-        ws.append(["autor", "titulo", "quantidade", "isbn", "editora", "ano", "genero"])  # header row
-        # Data rows
-        for book in self.books:
-            ws.append([book.autor, book.titulo, book.quantidade, book.isbn, 
-                      book.editora, book.ano, book.genero])
+        ws.append(["RELAÇÃO DE LIVROS / REMIÇÃO PELA LEITURA", "", "", "", "", "", ""])
+        ws.append(["autor", "titulo", "quantidade", "isbn", "editora", "ano", "genero"])
+        for book in books:
+            ws.append(
+                [
+                    book.autor,
+                    book.titulo,
+                    book.quantidade,
+                    book.isbn,
+                    book.editora,
+                    book.ano,
+                    book.genero,
+                ]
+            )
         wb.save(self.excel_path)
+
+
+class SQLiteStorage:
+    def __init__(self, db_path: Path):
+        self.db_path = db_path
+        self.db_path.parent.mkdir(parents=True, exist_ok=True)
+        self._init_db()
+
+    def _get_conn(self) -> sqlite3.Connection:
+        return sqlite3.connect(self.db_path)
+
+    def _init_db(self) -> None:
+        with self._get_conn() as conn:
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS books (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    autor TEXT NOT NULL,
+                    titulo TEXT NOT NULL,
+                    quantidade INTEGER NOT NULL DEFAULT 1,
+                    isbn TEXT NOT NULL DEFAULT '',
+                    editora TEXT NOT NULL DEFAULT '',
+                    ano TEXT NOT NULL DEFAULT '',
+                    genero TEXT NOT NULL DEFAULT ''
+                )
+                """
+            )
+            conn.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_books_titulo_nocase ON books (titulo COLLATE NOCASE)"
+            )
+            conn.commit()
+
+    def load_books(self) -> List[Book]:
+        with self._get_conn() as conn:
+            rows = conn.execute(
+                "SELECT autor, titulo, quantidade, isbn, editora, ano, genero FROM books ORDER BY titulo COLLATE NOCASE"
+            ).fetchall()
+
+        return [
+            Book(
+                autor=str(row[0]),
+                titulo=str(row[1]),
+                quantidade=int(row[2]),
+                isbn=str(row[3]),
+                editora=str(row[4]),
+                ano=str(row[5]),
+                genero=str(row[6]),
+            )
+            for row in rows
+        ]
+
+    def save_books(self, books: List[Book]) -> None:
+        with self._get_conn() as conn:
+            conn.execute("DELETE FROM books")
+            conn.executemany(
+                """
+                INSERT INTO books (autor, titulo, quantidade, isbn, editora, ano, genero)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                [
+                    (
+                        b.autor,
+                        b.titulo,
+                        int(b.quantidade),
+                        b.isbn,
+                        b.editora,
+                        b.ano,
+                        b.genero,
+                    )
+                    for b in books
+                ],
+            )
+            conn.commit()
+
+
+def load_storage_config(config_path: Path = CONFIG_PATH) -> Optional[dict]:
+    if not config_path.exists():
+        return None
+    try:
+        config = json.loads(config_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return None
+
+    backend = config.get("backend")
+    path = config.get("path")
+    if backend not in {"excel", "sqlite"} or not isinstance(path, str):
+        return None
+    return {"backend": backend, "path": path}
+
+
+def save_storage_config(backend: str, path: Path, config_path: Path = CONFIG_PATH) -> None:
+    payload = {"backend": backend, "path": str(path)}
+    config_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def create_excel_file(path: Path) -> None:
+    if path.exists():
+        return
+    ExcelStorage(path).save_books([])
+
+
+def create_sqlite_file(path: Path) -> None:
+    SQLiteStorage(path)
+
+
+def prompt_backend_in_terminal() -> Optional[str]:
+    if not sys.stdin.isatty():
+        # Ambiente não interativo: usa Excel por padrão.
+        return "excel"
+
+    print("Primeira execução: escolha a base de dados inicial.")
+    print("1) Excel (cria arquivo .xlsx)")
+    print("2) SQLite (cria arquivo .db)")
+    while True:
+        choice = input("Escolha [1/2]: ").strip()
+        if choice == "1":
+            return "excel"
+        if choice == "2":
+            return "sqlite"
+        if choice.lower() in {"q", "quit", "exit"}:
+            return None
+        print("Opção inválida. Digite 1 ou 2.")
+
+
+def ensure_storage_config(
+    choice_provider: Optional[Callable[[], Optional[str]]] = None,
+    config_path: Path = CONFIG_PATH,
+) -> dict:
+    config = load_storage_config(config_path)
+    if config:
+        return config
+
+    if choice_provider is None:
+        backend = "excel"
+    else:
+        backend = choice_provider()
+
+    if backend not in {"excel", "sqlite"}:
+        raise RuntimeError("Configuração inicial cancelada pelo usuário.")
+
+    data_path = EXCEL_PATH if backend == "excel" else SQLITE_PATH
+    if backend == "excel":
+        create_excel_file(data_path)
+    else:
+        create_sqlite_file(data_path)
+
+    save_storage_config(backend, data_path, config_path=config_path)
+    return {"backend": backend, "path": str(data_path)}
+
+
+class BookManager:
+    """Handles loading, persisting and manipulating the collection of books."""
+
+    def __init__(
+        self,
+        backend: Optional[str] = None,
+        storage_path: Optional[Path] = None,
+        auto_configure: bool = False,
+        choice_provider: Optional[Callable[[], Optional[str]]] = None,
+    ):
+        if backend is None:
+            config = load_storage_config()
+            if config is None:
+                if not auto_configure:
+                    raise RuntimeError(
+                        "Sistema não configurado. Execute a configuração inicial primeiro."
+                    )
+                config = ensure_storage_config(choice_provider=choice_provider)
+            backend = config["backend"]
+            storage_path = Path(config["path"])
+
+        if storage_path is None:
+            storage_path = EXCEL_PATH if backend == "excel" else SQLITE_PATH
+
+        if backend == "excel":
+            self.storage = ExcelStorage(Path(storage_path))
+        elif backend == "sqlite":
+            self.storage = SQLiteStorage(Path(storage_path))
+        else:
+            raise ValueError("Backend inválido. Use 'excel' ou 'sqlite'.")
+
+        self.backend = backend
+        self.storage_path = Path(storage_path)
+        self.books: List[Book] = []
+        self._load()
+
+    def _load(self) -> None:
+        self.books = self.storage.load_books()
+
+    def _save(self) -> None:
+        self.storage.save_books(self.books)
 
     # ---------------------------------------------------------------------
     # CRUD operations
@@ -161,24 +324,35 @@ class BookManager:
     def list_books(self) -> List[Book]:
         return self.books
 
-    def add_book(self, autor: str, titulo: str, quantidade: int = 1, 
-                 isbn: str = "", editora: str = "", ano: str = "", genero: str = "") -> None:
-        # Check if the book already exists (by title). If it does, we just
-        # increase the quantity.
+    def add_book(
+        self,
+        autor: str,
+        titulo: str,
+        quantidade: int = 1,
+        isbn: str = "",
+        editora: str = "",
+        ano: str = "",
+        genero: str = "",
+    ) -> None:
         for book in self.books:
             if book.titulo.lower() == titulo.lower():
                 book.quantidade += quantidade
                 break
         else:
-            self.books.append(Book(autor=autor, titulo=titulo, quantidade=quantidade,
-                                 isbn=isbn, editora=editora, ano=ano, genero=genero))
+            self.books.append(
+                Book(
+                    autor=autor,
+                    titulo=titulo,
+                    quantidade=quantidade,
+                    isbn=isbn,
+                    editora=editora,
+                    ano=ano,
+                    genero=genero,
+                )
+            )
         self._save()
 
     def remove_book(self, titulo: str) -> bool:
-        """Remove a book by its title.
-
-        Returns ``True`` if a book was removed, ``False`` otherwise.
-        """
         original_len = len(self.books)
         self.books = [b for b in self.books if b.titulo.lower() != titulo.lower()]
         if len(self.books) != original_len:
@@ -197,11 +371,6 @@ class BookManager:
         ano: str = "",
         genero: str = "",
     ) -> bool:
-        """Update a book identified by ``original_titulo``.
-
-        Returns ``True`` when the book exists and is updated. If ``titulo``
-        changes to an existing title in another record, returns ``False``.
-        """
         target = None
         for book in self.books:
             if book.titulo.lower() == original_titulo.lower():
@@ -228,10 +397,6 @@ class BookManager:
         return True
 
     def increase_quantity(self, titulo: str, amount: int = 1) -> bool:
-        """Increase the quantity of a book identified by its title.
-
-        Returns ``True`` if the book was found and updated, ``False`` otherwise.
-        """
         for book in self.books:
             if book.titulo.lower() == titulo.lower():
                 book.quantidade += amount
@@ -240,11 +405,6 @@ class BookManager:
         return False
 
     def decrease_quantity(self, titulo: str, amount: int = 1) -> bool:
-        """Decrease the quantity of a book identified by its title.
-
-        Quantity will not go below zero. Returns ``True`` if the book was
-        found and updated, ``False`` otherwise.
-        """
         for book in self.books:
             if book.titulo.lower() == titulo.lower():
                 book.quantidade = max(0, book.quantidade - amount)
@@ -260,7 +420,7 @@ class BookManager:
 
 
 # -------------------------------------------------------------------------
-# Command‑line interface
+# Command-line interface
 # -------------------------------------------------------------------------
 def _print_books(books: List[Book]) -> None:
     if not books:
@@ -283,10 +443,8 @@ def main(argv: Optional[List[str]] = None) -> int:
     parser = argparse.ArgumentParser(description="Gestor de livros")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
-    # list
     subparsers.add_parser("list", help="Lista todos os livros")
 
-    # add
     parser_add = subparsers.add_parser("add", help="Adiciona um novo livro")
     parser_add.add_argument("autor", help="Nome do autor")
     parser_add.add_argument("titulo", help="Título do livro")
@@ -302,30 +460,30 @@ def main(argv: Optional[List[str]] = None) -> int:
     parser_add.add_argument("--ano", help="Ano de publicação", default="")
     parser_add.add_argument("--genero", help="Gênero do livro", default="")
 
-    # remove
     parser_rm = subparsers.add_parser("remove", help="Remove um livro pelo título")
     parser_rm.add_argument("titulo", help="Título do livro a remover")
 
-    # find‑author
-    parser_fa = subparsers.add_parser(
-        "find-author", help="Busca livros por nome do autor"
-    )
+    parser_fa = subparsers.add_parser("find-author", help="Busca livros por nome do autor")
     parser_fa.add_argument("autor", help="Nome (ou parte) do autor")
 
-    # find‑title
-    parser_ft = subparsers.add_parser(
-        "find-title", help="Busca livros por título"
-    )
+    parser_ft = subparsers.add_parser("find-title", help="Busca livros por título")
     parser_ft.add_argument("titulo", help="Título (ou parte) a buscar")
 
     args = parser.parse_args(argv)
-    manager = BookManager()
+    manager = BookManager(auto_configure=True, choice_provider=prompt_backend_in_terminal)
 
     if args.command == "list":
         _print_books(manager.list_books())
     elif args.command == "add":
-        manager.add_book(args.autor, args.titulo, args.quantidade,
-                        args.isbn, args.editora, args.ano, args.genero)
+        manager.add_book(
+            args.autor,
+            args.titulo,
+            args.quantidade,
+            args.isbn,
+            args.editora,
+            args.ano,
+            args.genero,
+        )
         print("Livro adicionado com sucesso.")
     elif args.command == "remove":
         removed = manager.remove_book(args.titulo)

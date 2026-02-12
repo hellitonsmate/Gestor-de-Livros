@@ -12,7 +12,7 @@ import cmd
 import shlex
 from typing import List
 
-from book_manager import BookManager, Book
+from book_manager import BookManager, Book, prompt_backend_in_terminal
 
 
 class BookManagerShell(cmd.Cmd):
@@ -25,7 +25,10 @@ class BookManagerShell(cmd.Cmd):
 
     def __init__(self) -> None:
         super().__init__()
-        self.manager = BookManager()
+        self.manager = BookManager(
+            auto_configure=True,
+            choice_provider=prompt_backend_in_terminal,
+        )
 
     # ------------------------------------------------------------------
     # Helpers
